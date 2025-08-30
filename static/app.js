@@ -185,3 +185,67 @@ function bindUI() {
 }
 
 window.addEventListener("DOMContentLoaded", bindUI);
+// เก็บ lot ปัจจุบันหลังโหลดสำเร็จ
+let CURRENT_LOT_ID = null;
+
+// เรียกใช้ในฟังก์ชัน loadLot หลังโหลดเสร็จ
+// ...
+// หลังอัปเดต UI ทั้งหมดแล้ว:
+CURRENT_LOT_ID = data.lot_id;
+document.getElementById('qrBtn')?.removeAttribute('disabled');
+// ...
+
+function bindUI() {
+  const loadBtn = document.getElementById('loadBtn');
+  const seedBtn = document.getElementById('seedBtn');
+  const input   = document.getElementById('lotIdInput');
+  const qrBtn   = document.getElementById('qrBtn');
+  const qrModal = document.getElementById('qrModal');
+  const qrImg   = document.getElementById('qrImg');
+  const qrDl    = document.getElementById('qrDownload');
+
+  loadBtn?.addEventListener('click', () => {
+    const id = input.value.trim();
+    if (id) loadLot(id);
+  });
+
+  input?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') loadBtn?.click();
+  });
+
+  seedBtn?.addEventListener('click', async () => {
+    await fetchJSON('/api/seed');
+    input.value = 'LOT-001';
+    loadLot('LOT-001');
+  });
+
+  // ปุ่มสร้าง/แสดง QR
+  qrBtn?.addEventListener('click', async () => {
+    try {
+      const lotId = CURRENT_LOT_ID || input.value.trim();
+      if (!lotId) { alert('กรุณา Load lot ก่อน'); return; }
+
+      const res = await fetch(`/api/lots/${encodeURIComponent(lotId)}/qrcode`);
+      if (!res.ok) throw new Error(await res.text());
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+
+      // แสดงรูป + ปุ่มดาวน์โหลด
+      qrImg.src = url;
+      qrDl.href = url;
+
+      qrModal.showModal();
+      // ปิดแล้วคืนหน่วยความจำ
+      qrModal.addEventListener('close', () => {
+        URL.revokeObjectURL(url);
+        qrImg.src = '';
+      }, { once: true });
+    } catch (e) {
+      alert('สร้าง QR ล้มเหลว: ' + e.message);
+    }
+  });
+
+  // auto-load ถ้า input มีค่า
+  if (input && input.value.trim()) loadLot(input.value.trim());
+}
+
