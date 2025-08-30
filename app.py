@@ -17,7 +17,7 @@ from schemas import CreateLot, SensorReading, TransportEvent, GenericEvent, LotS
 from utils import compute_hash, verify_chain, simple_quality_score, risk_label
 
 # ---------- Config ----------
-BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
+BASE_URL = os.getenv("BASE_URL", "https://smart-farm-tracechain.onrender.com")
 
 app = FastAPI(title="Smart Farm TraceChain", version="0.1.0")
 
