@@ -7,7 +7,7 @@ import time
 import random
 import requests
 
-API = "http://127.0.0.1:8000"
+API = "https://smart-farm-tracechain.onrender.com"
 
 def main():
     r = requests.get(f"{API}/api/seed")
@@ -38,4 +38,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
