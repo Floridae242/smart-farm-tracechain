@@ -11,63 +11,69 @@
     <h1>Smart Farm TraceChain</h1>
     <p>Traceability • Hash Chain • Quality Score</p>
   </header>
-<main>
-  <section class="controls">
-    <input id="lotIdInput" placeholder="Enter Lot ID (e.g., LOT-001)" />
-    <button id="loadBtn">Load</button>
-    <button id="seedBtn">Seed Demo</button>
-    <button id="qrBtn" class="ghost" disabled>QR Code</button>
-  </section>
-  <dialog id="qrModal">
-  <form method="dialog" style="margin:0; padding:0">
-    <h3 style="margin:0 0 10px">QR Code</h3>
-    <img id="qrImg" alt="QR Code"
-         style="max-width:320px;width:100%;display:block;border-radius:8px"/>
-    <div style="display:flex;gap:8px;margin-top:12px">
-      <a id="qrDownload" download="lot-qrcode.png" class="ghost"
-         style="padding:10px 14px;border:1px solid #e5e7eb;border-radius:10px;text-decoration:none">
-        Download
-      </a>
-      <button value="cancel">Close</button>
-    </div>
-  </form>
-</dialog>
-  <section id="lotSection" class="hidden">
-    <h2 id="lotTitle"></h2>
-    <div id="lotMeta" class="muted"></div>
 
-    <div class="stats">
-      <span id="verifyBadge" class="badge">—</span>
-      <div class="stat">
-        <div class="label">Quality Score</div>
-        <div id="qualityScore" class="value">—</div>
-      </div>
-      <div class="stat">
-        <div class="label">Risk</div>
-        <div id="riskLabel" class="value">—</div>
-      </div>
-      <div class="stat small">
-        <div class="label">Temp (°C)</div>
-        <div id="latestTemp" class="value">—</div>
-      </div>
-      <div class="stat small">
-        <div class="label">RH (%)</div>
-        <div id="latestHum" class="value">—</div>
-      </div>
-      <div class="stat small">
-        <div class="label">pH</div>
-        <div id="latestPh" class="value">—</div>
-      </div>
-    </div>
+  <main>
+    <section class="controls">
+      <input id="lotIdInput" placeholder="Enter Lot ID (e.g., LOT-001)" />
+      <button id="loadBtn" type="button">Load</button>
+      <button id="seedBtn" type="button">Seed Demo</button>
+      <button id="qrBtn" type="button" class="ghost" disabled>QR Code</button>
+    </section>
 
-    <h3>Chain</h3>
-    <div id="chain"></div>
-  </section>
-</main>
+    <!-- Modal แสดง QR -->
+    <dialog id="qrModal">
+      <form method="dialog" style="margin:0; padding:0">
+        <h3 style="margin:0 0 10px">QR Code</h3>
+        <img id="qrImg" alt="QR Code"
+             style="max-width:320px;width:100%;display:block;border-radius:8px"/>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <a id="qrDownload" download="lot-qrcode.png" class="ghost"
+             style="padding:10px 14px;border:1px solid #e5e7eb;border-radius:10px;text-decoration:none">
+            Download
+          </a>
+          <button value="cancel" type="button">Close</button>
+        </div>
+      </form>
+    </dialog>
+
+    <section id="lotSection" class="hidden">
+      <h2 id="lotTitle"></h2>
+      <div id="lotMeta" class="muted"></div>
+
+      <div class="stats">
+        <span id="verifyBadge" class="badge">—</span>
+        <div class="stat">
+          <div class="label">Quality Score</div>
+          <div id="qualityScore" class="value">—</div>
+        </div>
+        <div class="stat">
+          <div class="label">Risk</div>
+          <div id="riskLabel" class="value">—</div>
+        </div>
+        <div class="stat small">
+          <div class="label">Temp (°C)</div>
+          <div id="latestTemp" class="value">—</div>
+        </div>
+        <div class="stat small">
+          <div class="label">RH (%)</div>
+          <div id="latestHum" class="value">—</div>
+        </div>
+        <div class="stat small">
+          <div class="label">pH</div>
+          <div id="latestPh" class="value">—</div>
+        </div>
+      </div>
+
+      <h3>Chain</h3>
+      <div id="chain"></div>
+    </section>
+  </main>
+
   <footer class="muted">
     <a href="/api/docs" target="_blank">API Docs</a>
   </footer>
 
+  <!-- script app.js -->
   <script src="/static/app.js" defer></script>
 </body>
 </html>
