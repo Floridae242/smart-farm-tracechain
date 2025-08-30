@@ -91,8 +91,6 @@ async function loadLot(lotId) {
     chainDiv.innerHTML = "";
 
     data.chain.forEach((ev, idx) => {
-      console.log("render ev", idx, ev.type);
-
       const card = document.createElement("div");
       card.className = "event compact";
 
@@ -149,22 +147,40 @@ function bindUI() {
   const seedBtn = document.getElementById("seedBtn");
   const input = document.getElementById("lotIdInput");
 
-  loadBtn?.addEventListener("click", () => {
+  loadBtn?.addEventListener("click", (e) => {
+    e.preventDefault(); // กันรีเฟรชถ้าอยู่ใน form
     const id = input.value.trim();
     if (id) loadLot(id);
   });
 
   input?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") loadBtn?.click();
+    if (e.key === "Enter") {
+      e.preventDefault();
+      loadBtn?.click();
+    }
   });
 
-  seedBtn?.addEventListener("click", async () => {
-    await fetchJSON("/api/seed");
-    input.value = "LOT-001";
-    loadLot("LOT-001");
+  // Seed ที่แน่ใจว่าได้ lot_id เสมอ แล้วค่อย load
+  seedBtn?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    try {
+      seedBtn.disabled = true;
+      seedBtn.textContent = "Seeding...";
+      const res = await fetch("/api/seed");
+      const js = await res.json().catch(() => ({}));
+      const lotId = js.lot_id || "LOT-001";
+      input.value = lotId;
+      await loadLot(lotId);
+    } catch (err) {
+      console.error(err);
+      alert("Seed failed: " + (err.message || err));
+    } finally {
+      seedBtn.disabled = false;
+      seedBtn.textContent = "Seed Demo";
+    }
   });
 
-  // auto-load if input already has value
+  // auto-load ถ้ามีค่าในช่องอยู่แล้ว
   if (input && input.value.trim()) loadLot(input.value.trim());
 }
 
