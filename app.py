@@ -1,187 +1,221 @@
-// ===== TraceChain Compact UI =====
-console.log("TraceChain compact UI v2");
+import os
+import io
+import json
+from datetime import datetime
 
-// ---------- helpers ----------
-async function fetchJSON(url, opts = {}) {
-  const res = await fetch(url, {
-    headers: { "Content-Type": "application/json" },
-    ...opts,
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || res.statusText);
-  }
-  return res.json();
-}
+from fastapi import FastAPI, HTTPException, Depends, Response
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
+from sqlalchemy import select
+import qrcode
 
-function chip(text, title = "") {
-  const c = document.createElement("span");
-  c.className = "chip";
-  c.textContent = text;
-  if (title) c.title = title;
-  return c;
-}
+from database import Base, engine, SessionLocal
+from models import Lot, Event
+from schemas import CreateLot, SensorReading, TransportEvent, GenericEvent, LotSummary
+from utils import compute_hash, verify_chain, simple_quality_score, risk_label
 
-function copyBtn(text) {
-  const b = document.createElement("button");
-  b.className = "chip copy";
-  b.type = "button";
-  b.textContent = "Copy";
-  b.addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      b.textContent = "Copied!";
-      setTimeout(() => (b.textContent = "Copy"), 1000);
-    } catch {
-      alert("Copy failed");
+# ---------- Config ----------
+BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
+
+app = FastAPI(title="Smart Farm TraceChain", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # ปรับให้เหมาะสมเมื่อขึ้น Prod
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ---------- DB ----------
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@app.on_event("startup")
+def on_startup():
+    Base.metadata.create_all(bind=engine)
+
+# ---------- Helpers ----------
+def _append_event(db: Session, lot: Lot, ev_type: str, payload: dict, ts_iso: str) -> Event:
+    prev = db.scalar(select(Event).where(Event.lot_id == lot.id).order_by(Event.id.desc()))
+    prev_hash = prev.hash if prev else "GENESIS"
+    h = compute_hash(prev_hash, payload, ts_iso)
+    ev = Event(
+        lot_id=lot.id,
+        type=ev_type,
+        payload=json.dumps(payload),
+        timestamp=ts_iso,
+        prev_hash=prev_hash,
+        hash=h,
+    )
+    db.add(ev); db.commit(); db.refresh(ev)
+    return ev
+
+# ---------- APIs ----------
+@app.post("/api/harvests", response_model=LotSummary)
+def create_lot(body: CreateLot, db: Session = Depends(get_db)):
+    lot = db.scalar(select(Lot).where(Lot.lot_id == body.lot_id))
+    if lot:
+        raise HTTPException(status_code=400, detail="lot_id already exists")
+    lot = Lot(
+        lot_id=body.lot_id,
+        farm_name=body.farm_name,
+        farm_location=body.farm_location,
+        crop=body.crop,
+        harvest_date=body.harvest_date,
+    )
+    db.add(lot); db.commit(); db.refresh(lot)
+    ts = datetime.utcnow().isoformat()
+    _append_event(db, lot, "harvest_created", body.model_dump(), ts)
+    return get_lot_summary(body.lot_id, db)
+
+@app.post("/api/sensors")
+def add_sensor_reading(body: SensorReading, db: Session = Depends(get_db)):
+    lot = db.scalar(select(Lot).where(Lot.lot_id == body.lot_id))
+    if not lot:
+        raise HTTPException(status_code=404, detail="lot not found")
+    ts = body.timestamp or datetime.utcnow().isoformat()
+    payload = {
+        "farm_name": body.farm_name,
+        "temperature_c": body.temperature_c,
+        "humidity_pct": body.humidity_pct,
+        "soil_moisture_pct": body.soil_moisture_pct,
+        "ph": body.ph,
     }
-  });
-  return b;
-}
+    _append_event(db, lot, "sensor_reading", payload, ts)
+    return {"status": "ok"}
 
-const TYPE_COLOR = {
-  harvest_created: "t-harvest",
-  sensor_reading: "t-sensor",
-  transported: "t-transport",
-};
-
-function fmtTime(iso) {
-  try {
-    return new Date(iso).toLocaleString("th-TH", { hour12: false });
-  } catch {
-    return iso;
-  }
-}
-
-function highlightFromPayload(type, payload) {
-  const items = [];
-  if (payload.temperature_c != null) items.push(`Temp ${payload.temperature_c}°C`);
-  if (payload.humidity_pct != null) items.push(`RH ${payload.humidity_pct}%`);
-  if (payload.ph != null) items.push(`pH ${payload.ph}`);
-  if (payload.location) items.push(`📍 ${payload.location}`);
-  if (payload.farm_name && type === "harvest_created") items.push(payload.farm_name);
-  return items.join(" • ");
-}
-
-// ---------- render ----------
-async function loadLot(lotId) {
-  console.log("loadLot called with", lotId);
-  const sec = document.getElementById("lotSection");
-  try {
-    const data = await fetchJSON(`/api/lots/${encodeURIComponent(lotId)}`);
-
-    // header + stats
-    sec.classList.remove("hidden");
-    document.getElementById("lotTitle").textContent = `Lot ${data.lot_id} • ${data.crop}`;
-    document.getElementById("lotMeta").textContent = `${data.farm_name} • Harvest ${data.harvest_date} • ${data.total_events} events`;
-    const badge = document.getElementById("verifyBadge");
-    badge.textContent = data.verified ? "VERIFIED" : "TAMPERED";
-    badge.className = "badge " + (data.verified ? "ok" : "bad");
-    document.getElementById("qualityScore").textContent = data.quality_score;
-    document.getElementById("riskLabel").textContent = data.spoilage_risk;
-    const t = document.getElementById("latestTemp");
-    const h = document.getElementById("latestHum");
-    const p = document.getElementById("latestPh");
-    if (t) t.textContent = data.latest_temperature_c ?? "-";
-    if (h) h.textContent = data.latest_humidity_pct ?? "-";
-    if (p) p.textContent = data.latest_ph ?? "-";
-
-    // chain
-    const chainDiv = document.getElementById("chain");
-    chainDiv.innerHTML = "";
-
-    data.chain.forEach((ev, idx) => {
-      const card = document.createElement("div");
-      card.className = "event compact";
-
-      // header
-      const header = document.createElement("div");
-      header.className = "ev-head";
-      const type = document.createElement("span");
-      type.className = `type ${TYPE_COLOR[ev.type] || ""}`;
-      type.textContent = ev.type.toUpperCase();
-      const time = document.createElement("span");
-      time.className = "time";
-      time.textContent = fmtTime(ev.timestamp);
-      const hilite = document.createElement("div");
-      hilite.className = "hilite";
-      hilite.textContent = highlightFromPayload(ev.type, ev.payload);
-
-      header.appendChild(type);
-      header.appendChild(time);
-      header.appendChild(hilite);
-
-      // hashes
-      const hashes = document.createElement("div");
-      hashes.className = "hashes";
-      const hShort = `${ev.hash.slice(0, 12)}…`;
-      const pShort = `${ev.prev_hash.slice(0, 12)}…`;
-      hashes.appendChild(chip(`hash: ${hShort}`, ev.hash));
-      hashes.appendChild(copyBtn(ev.hash));
-      hashes.appendChild(chip(`prev: ${pShort}`, ev.prev_hash));
-      hashes.appendChild(copyBtn(ev.prev_hash));
-
-      // details (collapsible JSON)
-      const details = document.createElement("details");
-      details.className = "ev-body";
-      const summary = document.createElement("summary");
-      summary.textContent = "ดูรายละเอียด";
-      const pre = document.createElement("pre");
-      pre.textContent = JSON.stringify(ev.payload, null, 2);
-      details.appendChild(summary);
-      details.appendChild(pre);
-
-      card.appendChild(header);
-      card.appendChild(hashes);
-      card.appendChild(details);
-      chainDiv.appendChild(card);
-    });
-  } catch (e) {
-    alert("Load failed: " + e.message);
-  }
-}
-
-// ---------- bindings ----------
-function bindUI() {
-  const loadBtn = document.getElementById("loadBtn");
-  const seedBtn = document.getElementById("seedBtn");
-  const input = document.getElementById("lotIdInput");
-
-  loadBtn?.addEventListener("click", (e) => {
-    e.preventDefault(); // กันรีเฟรชถ้าอยู่ใน form
-    const id = input.value.trim();
-    if (id) loadLot(id);
-  });
-
-  input?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      loadBtn?.click();
+@app.post("/api/transport")
+def add_transport_event(body: TransportEvent, db: Session = Depends(get_db)):
+    lot = db.scalar(select(Lot).where(Lot.lot_id == body.lot_id))
+    if not lot:
+        raise HTTPException(status_code=404, detail="lot not found")
+    ts = body.timestamp or datetime.utcnow().isoformat()
+    payload = {
+        "location": body.location,
+        "temperature_c": body.temperature_c,
+        "humidity_pct": body.humidity_pct,
+        "note": body.note,
     }
-  });
+    _append_event(db, lot, "transported", payload, ts)
+    return {"status": "ok"}
 
-  // Seed ที่แน่ใจว่าได้ lot_id เสมอ แล้วค่อย load
-  seedBtn?.addEventListener("click", async (e) => {
-    e.preventDefault();
-    try {
-      seedBtn.disabled = true;
-      seedBtn.textContent = "Seeding...";
-      const res = await fetch("/api/seed");
-      const js = await res.json().catch(() => ({}));
-      const lotId = js.lot_id || "LOT-001";
-      input.value = lotId;
-      await loadLot(lotId);
-    } catch (err) {
-      console.error(err);
-      alert("Seed failed: " + (err.message || err));
-    } finally {
-      seedBtn.disabled = false;
-      seedBtn.textContent = "Seed Demo";
-    }
-  });
+@app.post("/api/events")
+def add_generic_event(body: GenericEvent, db: Session = Depends(get_db)):
+    lot = db.scalar(select(Lot).where(Lot.lot_id == body.lot_id))
+    if not lot:
+        raise HTTPException(status_code=404, detail="lot not found")
+    ts = body.timestamp or datetime.utcnow().isoformat()
+    _append_event(db, lot, body.type, body.data, ts)
+    return {"status": "ok"}
 
-  // auto-load ถ้ามีค่าในช่องอยู่แล้ว
-  if (input && input.value.trim()) loadLot(input.value.trim());
-}
+@app.get("/api/lots/{lot_id}", response_model=LotSummary)
+def get_lot_summary(lot_id: str, db: Session = Depends(get_db)):
+    lot = db.scalar(select(Lot).where(Lot.lot_id == lot_id))
+    if not lot:
+        raise HTTPException(status_code=404, detail="lot not found")
+    events = db.scalars(select(Event).where(Event.lot_id == lot.id).order_by(Event.id.asc())).all()
+    chain = [{
+        "id": e.id,
+        "type": e.type,
+        "payload": json.loads(e.payload),
+        "timestamp": e.timestamp,
+        "prev_hash": e.prev_hash,
+        "hash": e.hash,
+    } for e in events]
+    verified = verify_chain(chain)
 
-window.addEventListener("DOMContentLoaded", bindUI);
+    temp = hum = ph = None
+    readings = []
+    for e in chain:
+        if e["type"] in ("sensor_reading", "transported"):
+            r = {
+                "temperature_c": e["payload"].get("temperature_c"),
+                "humidity_pct": e["payload"].get("humidity_pct"),
+                "soil_moisture_pct": e["payload"].get("soil_moisture_pct"),
+                "ph": e["payload"].get("ph"),
+            }
+            readings.append(r)
+            temp = r.get("temperature_c") if r.get("temperature_c") is not None else temp
+            hum = r.get("humidity_pct") if r.get("humidity_pct") is not None else hum
+            ph  = r.get("ph") if r.get("ph") is not None else ph
+
+    q = simple_quality_score(readings)
+
+    return LotSummary(
+        lot_id=lot.lot_id,
+        farm_name=lot.farm_name,
+        crop=lot.crop,
+        harvest_date=lot.harvest_date,
+        total_events=len(chain),
+        verified=verified,
+        quality_score=q,
+        spoilage_risk=risk_label(q),
+        latest_temperature_c=temp,
+        latest_humidity_pct=hum,
+        latest_ph=ph,
+        chain=chain,
+    )
+
+@app.get("/api/lots/{lot_id}/verify")
+def verify_lot(lot_id: str, db: Session = Depends(get_db)):
+    lot = db.scalar(select(Lot).where(Lot.lot_id == lot_id))
+    if not lot:
+        raise HTTPException(status_code=404, detail="lot not found")
+    events = db.scalars(select(Event).where(Event.lot_id == lot.id).order_by(Event.id.asc())).all()
+    chain = [{
+        "payload": json.loads(e.payload),
+        "timestamp": e.timestamp,
+        "prev_hash": e.prev_hash,
+        "hash": e.hash,
+    } for e in events]
+    return {"verified": verify_chain(chain), "events": len(chain)}
+
+@app.get("/api/lots/{lot_id}/qrcode")
+def lot_qrcode(lot_id: str, db: Session = Depends(get_db)):
+    lot = db.scalar(select(Lot).where(Lot.lot_id == lot_id))
+    if not lot:
+        raise HTTPException(status_code=404, detail="lot not found")
+    url = f"{BASE_URL}/lot.html?lot_id={lot_id}"
+    img = qrcode.make(url)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return Response(content=buf.getvalue(), media_type="image/png")
+
+@app.get("/api/seed")
+def seed(db: Session = Depends(get_db)):
+    default_id = "LOT-001"
+    # ถ้ามีอยู่แล้ว ให้คืน lot_id เสมอ
+    if db.scalar(select(Lot).where(Lot.lot_id == default_id)):
+        return {"status": "exists", "lot_id": default_id}
+
+    ls = CreateLot(
+        lot_id=default_id,
+        farm_name="Baan Mae Rim Farm",
+        farm_location="Mae Rim, Chiang Mai",
+        crop="Hydro Lettuce",
+        harvest_date="2025-08-15",
+    )
+    create_lot(ls, db)
+    add_sensor_reading(SensorReading(lot_id=default_id, farm_name="Baan Mae Rim Farm",
+                                     temperature_c=12.5, humidity_pct=90,
+                                     soil_moisture_pct=35, ph=6.5), db)
+    add_transport_event(TransportEvent(lot_id=default_id, location="Cold Room #1",
+                                       temperature_c=10.5, humidity_pct=88), db)
+    add_sensor_reading(SensorReading(lot_id=default_id, farm_name="Baan Mae Rim Farm",
+                                     temperature_c=16.8, humidity_pct=80,
+                                     soil_moisture_pct=30, ph=6.6), db)
+    return {"status": "seeded", "lot_id": default_id}
+
+# ---------- Static (วางท้ายไฟล์เสมอ) ----------
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/")
+def root():
+    return FileResponse("static/index.html")
