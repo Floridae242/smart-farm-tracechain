@@ -16,8 +16,22 @@
     <input id="lotIdInput" placeholder="Enter Lot ID (e.g., LOT-001)" />
     <button id="loadBtn">Load</button>
     <button id="seedBtn">Seed Demo</button>
+    <button id="qrBtn" class="ghost" disabled>QR Code</button>
   </section>
-
+  <dialog id="qrModal">
+  <form method="dialog" style="margin:0; padding:0">
+    <h3 style="margin:0 0 10px">QR Code</h3>
+    <img id="qrImg" alt="QR Code"
+         style="max-width:320px;width:100%;display:block;border-radius:8px"/>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <a id="qrDownload" download="lot-qrcode.png" class="ghost"
+         style="padding:10px 14px;border:1px solid #e5e7eb;border-radius:10px;text-decoration:none">
+        Download
+      </a>
+      <button value="cancel">Close</button>
+    </div>
+  </form>
+</dialog>
   <section id="lotSection" class="hidden">
     <h2 id="lotTitle"></h2>
     <div id="lotMeta" class="muted"></div>
