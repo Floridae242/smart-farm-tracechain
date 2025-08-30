@@ -1,0 +1,359 @@
+/*
+  Smart Farm TraceChain – Senior UI Theme
+  Author: ChatGPT (Senior UX/UI)
+  Tech: Pure CSS, responsive, prefers-color-scheme, accessible focus, soft micro‑interactions
+
+  — How to use —
+  1) Save as styles.css next to index.html & lot.html
+  2) No JS needed. Dark mode auto via prefers-color-scheme. If you add <body class="dark"> it will force dark.
+*/
+
+/* =====================
+   0) Root tokens
+   ===================== */
+   :root{
+    /* Brand palette (HSL) */
+    --brand-h: 146;  /* emerald / agri vibe */
+    --brand-s: 56%;
+    --brand-l: 42%;
+    --brand: hsl(var(--brand-h) var(--brand-s) var(--brand-l));
+    --brand-600: hsl(var(--brand-h) calc(var(--brand-s) + 6%) calc(var(--brand-l) - 6%));
+    --brand-300: hsl(var(--brand-h) calc(var(--brand-s) - 12%) calc(var(--brand-l) + 18%));
+    --accent: hsl(262 83% 58%); /* purple accent */
+  
+    /* Neutrals */
+    --bg: #f7faf9;
+    --panel: #ffffff;
+    --text: #0b1220;
+    --muted: #5f6b7b;
+    --line: #e6ecea;
+    --shadow: 0 10px 30px rgba(0,0,0,.06);
+  
+    /* States */
+    --ok: #10b981;   /* teal-500 */
+    --bad: #ef4444;  /* red-500 */
+    --warn: #f59e0b; /* amber-500 */
+  
+    /* Radii & spacing */
+    --r-lg: 18px;
+    --r-md: 14px;
+    --r-sm: 10px;
+    --space: clamp(16px, 2vw, 24px);
+    --space-lg: clamp(24px, 4vw, 40px);
+  
+    /* Typography scale */
+    --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    --h1: clamp(28px, 3vw, 44px);
+    --h2: clamp(22px, 2.4vw, 30px);
+    --h3: clamp(18px, 2vw, 22px);
+    --body: 16px;
+  }
+  
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg: #0a0f0d;
+      --panel: #0f1512;
+      --text: #ecf6f2;
+      --muted: #9fb1a9;
+      --line: #19211d;
+      --shadow: 0 10px 30px rgba(0,0,0,.4);
+    }
+  }
+  
+  /* Optional manual dark override */
+  .dark :root, body.dark{
+    --bg: #0a0f0d;
+    --panel: #0f1512;
+    --text: #ecf6f2;
+    --muted: #9fb1a9;
+    --line: #19211d;
+  }
+  
+  /* =====================
+     1) Base & layout
+     ===================== */
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:var(--font);
+    color:var(--text);
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(76, 222, 164, .08), transparent 60%),
+      radial-gradient(800px 400px at 90% 0%, rgba(139, 92, 246, .08), transparent 60%),
+      var(--bg);
+    line-height:1.6;
+    letter-spacing:.2px;
+  }
+  
+  img{max-width:100%; display:block}
+  .hidden{display:none !important}
+  
+  main{width:min(1100px, 92%); margin:0 auto var(--space-lg); padding: var(--space-lg) 0}
+  
+  /* =====================
+     2) Header & footer
+     ===================== */
+  header{
+    position:relative;
+    padding: calc(var(--space-lg) * .9) 0 var(--space);
+    width:min(1100px, 92%); margin:0 auto;
+  }
+  header::after{ /* subtle separator */
+    content:""; display:block; height:1px; background:linear-gradient(90deg, transparent, var(--line), transparent);
+    margin-top: var(--space);
+  }
+  header h1{
+    margin:0 0 8px; font-size:var(--h1); letter-spacing:-.5px; font-weight:800;
+    display:flex; gap:10px; align-items:center;
+  }
+  header p{margin:0; color:var(--muted)}
+  
+  footer{
+    width:min(1100px,92%); margin: var(--space-lg) auto var(--space);
+    color:var(--muted); font-size:14px; text-align:center;
+  }
+  
+  /* =====================
+     3) Cards & containers
+     ===================== */
+  .card{
+    background: var(--panel);
+    border:1px solid var(--line);
+    border-radius: var(--r-lg);
+    padding: clamp(16px, 2vw, 24px);
+    box-shadow: var(--shadow);
+    backdrop-filter: saturate(1.1) blur(2px);
+    margin-bottom: var(--space);
+  }
+  
+  /* =====================
+     4) Controls (inputs & buttons)
+     ===================== */
+  .row{display:flex; gap:12px; flex-wrap:wrap}
+  input{
+    flex:1 1 240px;
+    height:44px; padding:0 14px; font-size:15px;
+    color:var(--text); background:var(--panel);
+    border:1px solid var(--line); border-radius: var(--r-sm);
+    outline: none; transition: box-shadow .2s, border-color .2s, transform .06s;
+  }
+  input::placeholder{color: color-mix(in oklab, var(--muted) 68%, transparent)}
+  input:focus{
+    border-color: color-mix(in oklab, var(--brand) 40%, var(--line));
+    box-shadow: 0 0 0 6px color-mix(in oklab, var(--brand) 12%, transparent);
+  }
+  
+  button{
+    height:44px; padding:0 16px; font-weight:700; font-size:14px; letter-spacing:.2px;
+    border:1px solid transparent; border-radius:999px; cursor:pointer;
+    background: linear-gradient(180deg, var(--brand), var(--brand-600));
+    color:#fff; box-shadow: 0 8px 18px color-mix(in oklab, var(--brand) 22%, transparent);
+    transition: transform .06s ease, filter .2s ease, box-shadow .2s ease;
+  }
+  button:hover{filter:saturate(1.06) brightness(1.02)}
+  button:active{transform: translateY(1px)}
+  button:focus-visible{outline: none; box-shadow:0 0 0 6px color-mix(in oklab, var(--brand) 18%, transparent)}
+  
+  button.ghost{
+    background: linear-gradient(180deg, color-mix(in oklab, var(--bg) 80%, var(--panel)), color-mix(in oklab, var(--panel) 90%, #fff));
+    color:var(--text);
+    border-color: var(--line);
+    box-shadow: 0 8px 18px rgba(0,0,0,.04);
+  }
+  button.ghost:hover{border-color: color-mix(in oklab, var(--brand) 30%, var(--line))}
+  
+  .hint{margin-top:8px; color:var(--muted); font-size:13px}
+  
+  /* =====================
+     5) Lot header & badges
+     ===================== */
+  .lot-header{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    margin-bottom: var(--space);
+  }
+  .lot-header h3{margin:0; font-size: var(--h2); letter-spacing:-.2px}
+  .lot-header p{margin:6px 0 0; color:var(--muted)}
+  
+  .badge{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:8px 12px; font-weight:800; font-size:12px; letter-spacing:.6px;
+    border-radius: 10px; text-transform:uppercase;
+    border:1px solid var(--line);
+    background: color-mix(in oklab, var(--panel) 86%, #fff);
+  }
+  .badge.ok{color:#064e3b; background: color-mix(in oklab, var(--ok) 20%, var(--panel)); border-color: color-mix(in oklab, var(--ok) 36%, var(--line))}
+  .badge.bad{color:#7f1d1d; background: color-mix(in oklab, var(--bad) 14%, var(--panel)); border-color: color-mix(in oklab, var(--bad) 34%, var(--line))}
+  
+  /* =====================
+     6) Stats grid
+     ===================== */
+  .stats{
+    display:grid; gap:12px; margin-bottom: var(--space);
+    grid-template-columns: repeat(5, minmax(0,1fr));
+  }
+  @media (max-width: 960px){ .stats{grid-template-columns: repeat(3, minmax(0,1fr));} }
+  @media (max-width: 640px){ .stats{grid-template-columns: repeat(2, minmax(0,1fr));} }
+  
+  .stat{
+    background: linear-gradient(180deg, color-mix(in oklab, var(--panel) 92%, #fff), var(--panel));
+    border:1px solid var(--line);
+    border-radius: var(--r-md);
+    padding:14px 16px; box-shadow: var(--shadow);
+  }
+  .stat .label{display:block; font-size:12px; color:var(--muted); letter-spacing:.4px}
+  .stat .value{display:block; margin-top:6px; font-weight:800; font-size: clamp(18px, 2.8vw, 26px)}
+  
+  /* =====================
+     7) Chain events
+     ===================== */
+  #chain{display:grid; gap:14px}
+  .event{
+    position:relative;
+    border:1px solid var(--line);
+    border-radius: var(--r-md);
+    padding:14px 14px 12px;
+    background: radial-gradient(800px 300px at 100% -10%, color-mix(in oklab, var(--accent) 4%, transparent), transparent 60%), var(--panel);
+    box-shadow: var(--shadow);
+    transition: transform .08s ease, box-shadow .2s ease, border-color .2s ease;
+  }
+  .event:hover{
+    transform: translateY(-1px);
+    box-shadow: 0 14px 26px rgba(0,0,0,.08);
+    border-color: color-mix(in oklab, var(--brand) 28%, var(--line));
+  }
+  .event-type{
+    display:inline-flex; align-items:center; gap:8px;
+    font-weight:800; font-size:13px; letter-spacing:.5px; text-transform:uppercase;
+    color: var(--brand);
+  }
+  .event-time{font-size:12px; color:var(--muted); margin-top:2px}
+  .event-payload{
+    margin:10px 0 0; border-radius: 12px; padding:12px;
+    background: color-mix(in oklab, var(--panel) 84%, #fff);
+    border:1px dashed var(--line);
+    overflow:auto; max-height: 320px;
+  }
+  .hash{
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    color: #6b7280; font-size:12px; padding: 0 4px 0 8px;
+    border-left:2px solid color-mix(in oklab, var(--brand) 50%, var(--line));
+  }
+  
+  /* =====================
+     8) Typography helpers
+     ===================== */
+  section h2{font-size: var(--h2); margin:0 0 6px; letter-spacing:-.2px}
+  section h4{font-size: var(--h3); margin: 8px 0 10px}
+  
+  /* =====================
+     9) Motion (reduce‑motion aware)
+     ===================== */
+  @media (prefers-reduced-motion: no-preference){
+    .card, .event, button{ transition: transform .1s ease, box-shadow .2s ease }
+  }
+  
+  /* =====================
+     10) Utilities
+     ===================== */
+  .center{display:grid; place-items:center}
+  
+  /* =====================
+     11) Accessibility focus ring FKA :focus-visible polyfeel
+     ===================== */
+  :where(a, button, input, summary):focus-visible{
+    outline: none;
+    box-shadow: 0 0 0 6px color-mix(in oklab, var(--accent) 14%, transparent);
+    border-color: color-mix(in oklab, var(--accent) 40%, var(--line));
+  }
+  
+  /* =====================
+     12) Page‑specific micro‑tweaks
+     ===================== */
+  /* Index search card spacing */
+  .card .row + .hint{margin-top:4px}
+  
+  /* Lot page smaller meta spacing on narrow */
+  @media (max-width:560px){
+    .lot-header{align-items:flex-start}
+  }
+  /* Compact event style */
+.event.compact{ padding:14px; border-radius:14px; border:1px solid rgba(0,0,0,.06); background:#fff; }
+.dark .event.compact{ background:linear-gradient(180deg, #0e1630 0%, #0c1429 100%); }
+
+.ev-head{ display:grid; grid-template-columns:auto 1fr; grid-row-gap:4px; column-gap:12px; align-items:center; }
+.ev-head .type{
+  font-weight:800; font-size:12px; padding:6px 10px; border-radius:999px; letter-spacing:.3px; color:#0f2a1f; background:#d1fae5; border:1px solid #a7f3d0;
+}
+.ev-head .type.t-sensor{ color:#0b2940; background:#dbeafe; border-color:#bfdbfe; }
+.ev-head .type.t-transport{ color:#3b2c09; background:#fef3c7; border-color:#fde68a; }
+.ev-head .time{ color:#6b7280; font-size:12px; justify-self:end; }
+.ev-head .hilite{ grid-column:1/-1; color:#374151; font-weight:600; }
+
+.hashes{ margin:8px 0 6px; display:flex; flex-wrap:wrap; gap:6px; }
+.chip{
+  display:inline-flex; align-items:center; gap:6px; padding:6px 8px; border-radius:10px;
+  background:#f3f4f6; color:#111827; border:1px solid #e5e7eb; font-size:12px; cursor:default;
+}
+.chip.copy{ cursor:pointer; background:#eef2ff; border-color:#e0e7ff; }
+.chip.copy:hover{ filter:brightness(1.05); }
+
+.ev-body{ margin-top:6px; }
+.ev-body > summary{ cursor:pointer; color:#2563eb; font-weight:700; }
+.ev-body[open] > summary{ margin-bottom:6px; }
+.ev-body pre{
+  background:#0b1226; color:#cfe9ff; border-radius:10px; padding:10px; border:1px dashed rgba(148,163,184,.35); max-height:260px; overflow:auto;
+}
+/* ===== Compact chain UI ===== */
+.event.compact {
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(0,0,0,.06);
+  background: #fff;
+}
+
+.ev-head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-row-gap: 4px;
+  column-gap: 12px;
+  align-items: center;
+}
+
+.ev-head .type {
+  font-weight: 800;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  letter-spacing: .3px;
+  color: #0f2a1f;
+  background: #d1fae5;
+  border: 1px solid #a7f3d0;
+}
+
+.ev-head .type.t-sensor { color:#0b2940; background:#dbeafe; border-color:#bfdbfe; }
+.ev-head .type.t-transport { color:#3b2c09; background:#fef3c7; border-color:#fde68a; }
+
+.ev-head .time { color:#6b7280; font-size:12px; justify-self:end; }
+.ev-head .hilite { grid-column: 1 / -1; color:#374151; font-weight:600; }
+
+.hashes { margin: 8px 0 6px; display:flex; flex-wrap:wrap; gap:6px; }
+
+.chip {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:6px 8px; border-radius:10px;
+  background:#f3f4f6; color:#111827; border:1px solid #e5e7eb;
+  font-size:12px;
+}
+.chip.copy { cursor:pointer; background:#eef2ff; border-color:#e0e7ff; }
+.chip.copy:hover { filter: brightness(1.05); }
+
+.ev-body { margin-top:6px; }
+.ev-body > summary { cursor:pointer; color:#2563eb; font-weight:700; }
+.ev-body[open] > summary { margin-bottom:6px; }
+.ev-body pre {
+  background:#0b1226; color:#cfe9ff;
+  border-radius:10px; padding:10px;
+  border:1px dashed rgba(148,163,184,.35);
+  max-height:260px; overflow:auto;
+}

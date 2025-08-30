@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Smart Farm TraceChain</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>🌱 Smart Farm TraceChain</h1>
+    <p>ตรวจสอบย้อนกลับ From Farm to Table พร้อมการยืนยันแฮชเชน</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>ค้นหา Lot</h2>
+      <div class="row">
+        <input id="lotIdInput" placeholder="เช่น LOT-001" />
+        <button id="loadBtn">Load</button>
+        <button id="seedBtn" class="ghost">Seed Demo</button>
+      </div>
+      <p class="hint">* หากยังไม่มีข้อมูล ลองกด Seed Demo เพื่อสร้างตัวอย่าง</p>
+    </section>
+
+    <section id="lotSection" class="card hidden">
+      <div class="lot-header">
+        <div>
+          <h3 id="lotTitle">Lot</h3>
+          <p id="lotMeta"></p>
+        </div>
+        <div class="badge" id="verifyBadge">UNVERIFIED</div>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <span class="label">คุณภาพ (0-100)</span>
+          <span class="value" id="qualityScore">-</span>
+        </div>
+        <div class="stat">
+          <span class="label">ความเสี่ยงเสียหาย</span>
+          <span class="value" id="riskLabel">-</span>
+        </div>
+        <div class="stat">
+          <span class="label">Temp °C</span>
+          <span class="value" id="latestTemp">-</span>
+        </div>
+        <div class="stat">
+          <span class="label">RH %</span>
+          <span class="value" id="latestHum">-</span>
+        </div>
+        <div class="stat">
+          <span class="label">pH</span>
+          <span class="value" id="latestPh">-</span>
+        </div>
+      </div>
+
+      <h4>Chain</h4>
+      <div id="chain"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2025 TraceChain Demo • YLIFE Hackathon Prototype</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
