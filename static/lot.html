@@ -2,44 +2,60 @@
 <html lang="th">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Lot Detail • Smart Farm TraceChain</title>
-  <link rel="stylesheet" href="styles.css" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TraceChain • Consumer View</title>
+  <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
   <header>
-    <h1>🔗 Lot Detail</h1>
-    <p>สแกน QR แล้วเจอหน้านี้</p>
+    <h1>TraceChain • Consumer View</h1>
   </header>
-  <main>
-    <section class="card">
-      <div class="row">
-        <input id="lotIdInput" placeholder="Lot ID" />
-        <button id="loadBtn">Load</button>
+
+  <section id="lotSection" class="hidden">
+    <h2 id="lotTitle"></h2>
+    <div id="lotMeta" class="muted"></div>
+    <div class="stats">
+      <span id="verifyBadge" class="badge">—</span>
+      <div class="stat">
+        <div class="label">Quality Score</div>
+        <div id="qualityScore" class="value">—</div>
       </div>
-    </section>
-    <section id="lotSection" class="card hidden">
-      <div class="lot-header">
-        <div>
-          <h3 id="lotTitle">Lot</h3>
-          <p id="lotMeta"></p>
-        </div>
-        <div class="badge" id="verifyBadge">UNVERIFIED</div>
+      <div class="stat">
+        <div class="label">Risk</div>
+        <div id="riskLabel" class="value">—</div>
       </div>
-      <div class="stats">
-        <div class="stat"><span class="label">คุณภาพ</span><span class="value" id="qualityScore">-</span></div>
-        <div class="stat"><span class="label">ความเสี่ยง</span><span class="value" id="riskLabel">-</span></div>
-      </div>
-      <h4>อีเวนต์ในเชน</h4>
-      <div id="chain"></div>
-    </section>
-  </main>
-  <footer><p>TraceChain • Demo</p></footer>
+    </div>
+    <h3>Chain (Summary)</h3>
+    <div id="chain"></div>
+  </section>
+
   <script>
-    const params = new URLSearchParams(location.search);
-    const lot = params.get('lot_id') || '';
-    document.getElementById('lotIdInput').value = lot;
+    async function fetchJSON(url){ const r=await fetch(url); if(!r.ok) throw new Error(await r.text()); return r.json(); }
+    function qs(name){ const u=new URL(location.href); return u.searchParams.get(name); }
+    function fmtTime(iso){ try{ return new Date(iso).toLocaleString('th-TH',{hour12:false}); }catch{return iso;} }
+
+    async function load(lotId){
+      const sec=document.getElementById('lotSection');
+      const data=await fetchJSON(`/api/lots/${encodeURIComponent(lotId)}`);
+      sec.classList.remove('hidden');
+      document.getElementById("lotTitle").textContent = `Lot ${data.lot_id} • ${data.crop}`;
+      document.getElementById("lotMeta").textContent = `${data.farm_name} • Harvest ${data.harvest_date} • ${data.total_events} events`;
+      const badge=document.getElementById('verifyBadge');
+      badge.textContent=data.verified?'VERIFIED':'TAMPERED';
+      badge.className='badge ' + (data.verified?'ok':'bad');
+      document.getElementById('qualityScore').textContent=data.quality_score;
+      document.getElementById('riskLabel').textContent=data.spoilage_risk;
+      const chain=document.getElementById('chain'); chain.innerHTML='';
+      data.chain.forEach(ev=>{
+        const div=document.createElement('div'); div.className='event';
+        div.innerHTML = `<b>${ev.type.toUpperCase()}</b> • <span class="muted">${fmtTime(ev.timestamp)}</span>`;
+        chain.appendChild(div);
+      });
+    }
+    window.addEventListener('DOMContentLoaded', ()=>{
+      const id = qs('lot_id') || 'LOT-001';
+      load(id).catch(e=>alert(e.message));
+    });
   </script>
-  <script src="/app.js"></script>
 </body>
 </html>
