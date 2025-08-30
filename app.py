@@ -8,7 +8,8 @@ from datetime import datetime
 import json
 import io
 import qrcode
-
+import os
+BASE_URL = os.getenv("BASE_URL", "https://smart-farm-tracechain.onrender.com")
 from database import Base, engine, SessionLocal
 from models import Lot, Event
 from schemas import CreateLot, SensorReading, TransportEvent, GenericEvent, LotSummary
@@ -216,9 +217,7 @@ def lot_qrcode(lot_id: str, db: Session = Depends(get_db)):
     lot = db.scalar(select(Lot).where(Lot.lot_id == lot_id))
     if not lot:
         raise HTTPException(status_code=404, detail="lot not found")
-
-    # เปลี่ยนเป็น IP/โดเมนจริงของคุณเมื่อ deploy
-    url = f"http://localhost:8000/lot.html?lot_id={lot_id}"
+    url = f"{BASE_URL}/lot.html?lot_id={lot_id}"
     img = qrcode.make(url)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
