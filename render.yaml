@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: smart-farm-tracechain
+    env: python
+    plan: free
+    buildCommand: "pip install --upgrade pip setuptools wheel && pip install -r requirements.txt"
+    startCommand: "gunicorn -k uvicorn.workers.UvicornWorker app:app --bind 0.0.0.0:$PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.4
