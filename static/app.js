@@ -1,251 +1,154 @@
-// ===== TraceChain Compact UI =====
-console.log("TraceChain compact UI v2");
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TraceChain • Consumer View</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>TraceChain • Consumer View</h1>
+  </header>
 
-// ---------- helpers ----------
-async function fetchJSON(url, opts = {}) {
-  const res = await fetch(url, {
-    headers: { "Content-Type": "application/json" },
-    ...opts,
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || res.statusText);
-  }
-  return res.json();
-}
+  <!-- แถวค้นหา + ปุ่ม -->
+  <div class="row" style="margin:16px auto; width:min(1100px,92%)">
+    <input id="lotIdInput" placeholder="LOT-001">
+    <button id="loadBtn">Load</button>
+    <button id="seedBtn" class="ghost">Seed Demo</button>
+    <button id="qrBtn" class="ghost" disabled>QR Code</button>
+  </div>
 
-function chip(text, title = "") {
-  const c = document.createElement("span");
-  c.className = "chip";
-  c.textContent = text;
-  if (title) c.title = title;
-  return c;
-}
+  <section id="lotSection" class="hidden">
+    <h2 id="lotTitle"></h2>
+    <div id="lotMeta" class="muted"></div>
+    <div class="stats">
+      <span id="verifyBadge" class="badge">—</span>
+      <div class="stat">
+        <div class="label">Quality Score</div>
+        <div id="qualityScore" class="value">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">Risk</div>
+        <div id="riskLabel" class="value">—</div>
+      </div>
+    </div>
 
-function copyBtn(text) {
-  const b = document.createElement("button");
-  b.className = "chip copy";
-  b.type = "button";
-  b.textContent = "Copy";
-  b.addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      b.textContent = "Copied!";
-      setTimeout(() => (b.textContent = "Copy"), 1000);
-    } catch {
-      alert("Copy failed");
+    <h3>Chain (Summary)</h3>
+    <div id="chain"></div>
+  </section>
+
+  <!-- Modal แสดง QR -->
+  <dialog id="qrModal">
+    <form method="dialog" style="margin:0; padding:0">
+      <h3 style="margin:0 0 10px">QR Code</h3>
+      <img id="qrImg" alt="QR Code" style="max-width:320px; width:100%; display:block; border-radius:8px"/>
+      <div style="display:flex; gap:8px; margin-top:12px">
+        <a id="qrDownload" download="lot-qrcode.png" class="ghost" style="padding:10px 14px; border:1px solid #e5e7eb; border-radius:10px; text-decoration:none">Download</a>
+        <button value="cancel">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    // ---------- helpers ----------
+    async function fetchJSON(url, opts) {
+      const r = await fetch(url, opts);
+      if (!r.ok) throw new Error(await r.text());
+      return r.json();
     }
-  });
-  return b;
-}
+    function qs(name) { const u=new URL(location.href); return u.searchParams.get(name); }
+    function fmtTime(iso){ try{ return new Date(iso).toLocaleString('th-TH',{hour12:false}); }catch{return iso;} }
 
-const TYPE_COLOR = {
-  harvest_created: "t-harvest",
-  sensor_reading: "t-sensor",
-  transported: "t-transport",
-};
+    // เก็บ lot ที่โหลดอยู่ เพื่อใช้ตอนกดปุ่ม QR
+    let CURRENT_LOT_ID = null;
 
-function fmtTime(iso) {
-  try {
-    return new Date(iso).toLocaleString("th-TH", { hour12: false });
-  } catch {
-    return iso;
-  }
-}
+    // ---------- render ----------
+    async function loadLot(lotId){
+      const sec=document.getElementById('lotSection');
+      const data=await fetchJSON(`/api/lots/${encodeURIComponent(lotId)}`);
 
-function highlightFromPayload(type, payload) {
-  const items = [];
-  if (payload.temperature_c != null) items.push(`Temp ${payload.temperature_c}°C`);
-  if (payload.humidity_pct != null) items.push(`RH ${payload.humidity_pct}%`);
-  if (payload.ph != null) items.push(`pH ${payload.ph}`);
-  if (payload.location) items.push(`📍 ${payload.location}`);
-  if (payload.farm_name && type === "harvest_created") items.push(payload.farm_name);
-  return items.join(" • ");
-}
+      // header + stats
+      sec.classList.remove('hidden');
+      document.getElementById("lotTitle").textContent = `Lot ${data.lot_id} • ${data.crop}`;
+      document.getElementById("lotMeta").textContent = `${data.farm_name} • Harvest ${data.harvest_date} • ${data.total_events} events`;
+      const badge=document.getElementById('verifyBadge');
+      badge.textContent=data.verified?'VERIFIED':'TAMPERED';
+      badge.className='badge ' + (data.verified?'ok':'bad');
+      document.getElementById('qualityScore').textContent=data.quality_score;
+      document.getElementById('riskLabel').textContent=data.spoilage_risk;
 
-// ---------- render ----------
-async function loadLot(lotId) {
-  console.log("loadLot called with", lotId);
-  const sec = document.getElementById("lotSection");
-  try {
-    const data = await fetchJSON(`/api/lots/${encodeURIComponent(lotId)}`);
+      // chain summary
+      const chain=document.getElementById('chain'); chain.innerHTML='';
+      data.chain.forEach(ev=>{
+        const div=document.createElement('div'); div.className='event';
+        div.innerHTML = `<b>${ev.type.toUpperCase()}</b> • <span class="muted">${fmtTime(ev.timestamp)}</span>`;
+        chain.appendChild(div);
+      });
 
-    // header + stats
-    sec.classList.remove("hidden");
-    document.getElementById("lotTitle").textContent = `Lot ${data.lot_id} • ${data.crop}`;
-    document.getElementById("lotMeta").textContent = `${data.farm_name} • Harvest ${data.harvest_date} • ${data.total_events} events`;
-    const badge = document.getElementById("verifyBadge");
-    badge.textContent = data.verified ? "VERIFIED" : "TAMPERED";
-    badge.className = "badge " + (data.verified ? "ok" : "bad");
-    document.getElementById("qualityScore").textContent = data.quality_score;
-    document.getElementById("riskLabel").textContent = data.spoilage_risk;
-    const t = document.getElementById("latestTemp");
-    const h = document.getElementById("latestHum");
-    const p = document.getElementById("latestPh");
-    if (t) t.textContent = data.latest_temperature_c ?? "-";
-    if (h) h.textContent = data.latest_humidity_pct ?? "-";
-    if (p) p.textContent = data.latest_ph ?? "-";
-
-    // chain
-    const chainDiv = document.getElementById("chain");
-    chainDiv.innerHTML = "";
-
-    data.chain.forEach((ev, idx) => {
-      const card = document.createElement("div");
-      card.className = "event compact";
-
-      // header
-      const header = document.createElement("div");
-      header.className = "ev-head";
-      const type = document.createElement("span");
-      type.className = `type ${TYPE_COLOR[ev.type] || ""}`;
-      type.textContent = ev.type.toUpperCase();
-      const time = document.createElement("span");
-      time.className = "time";
-      time.textContent = fmtTime(ev.timestamp);
-      const hilite = document.createElement("div");
-      hilite.className = "hilite";
-      hilite.textContent = highlightFromPayload(ev.type, ev.payload);
-
-      header.appendChild(type);
-      header.appendChild(time);
-      header.appendChild(hilite);
-
-      // hashes
-      const hashes = document.createElement("div");
-      hashes.className = "hashes";
-      const hShort = `${ev.hash.slice(0, 12)}…`;
-      const pShort = `${ev.prev_hash.slice(0, 12)}…`;
-      hashes.appendChild(chip(`hash: ${hShort}`, ev.hash));
-      hashes.appendChild(copyBtn(ev.hash));
-      hashes.appendChild(chip(`prev: ${pShort}`, ev.prev_hash));
-      hashes.appendChild(copyBtn(ev.prev_hash));
-
-      // details (collapsible JSON)
-      const details = document.createElement("details");
-      details.className = "ev-body";
-      const summary = document.createElement("summary");
-      summary.textContent = "ดูรายละเอียด";
-      const pre = document.createElement("pre");
-      pre.textContent = JSON.stringify(ev.payload, null, 2);
-      details.appendChild(summary);
-      details.appendChild(pre);
-
-      card.appendChild(header);
-      card.appendChild(hashes);
-      card.appendChild(details);
-      chainDiv.appendChild(card);
-    });
-  } catch (e) {
-    alert("Load failed: " + e.message);
-  }
-}
-
-// ---------- bindings ----------
-function bindUI() {
-  const loadBtn = document.getElementById("loadBtn");
-  const seedBtn = document.getElementById("seedBtn");
-  const input = document.getElementById("lotIdInput");
-
-  loadBtn?.addEventListener("click", (e) => {
-    e.preventDefault(); // กันรีเฟรชถ้าอยู่ใน form
-    const id = input.value.trim();
-    if (id) loadLot(id);
-  });
-
-  input?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      loadBtn?.click();
+      // เปิดการใช้งานปุ่ม QR
+      CURRENT_LOT_ID = data.lot_id;
+      document.getElementById('qrBtn')?.removeAttribute('disabled');
     }
-  });
 
-  // Seed ที่แน่ใจว่าได้ lot_id เสมอ แล้วค่อย load
-  seedBtn?.addEventListener("click", async (e) => {
-    e.preventDefault();
-    try {
-      seedBtn.disabled = true;
-      seedBtn.textContent = "Seeding...";
-      const res = await fetch("/api/seed");
-      const js = await res.json().catch(() => ({}));
-      const lotId = js.lot_id || "LOT-001";
-      input.value = lotId;
-      await loadLot(lotId);
-    } catch (err) {
-      console.error(err);
-      alert("Seed failed: " + (err.message || err));
-    } finally {
-      seedBtn.disabled = false;
-      seedBtn.textContent = "Seed Demo";
+    // ---------- bindings ----------
+    function bindUI(){
+      const input   = document.getElementById('lotIdInput');
+      const loadBtn = document.getElementById('loadBtn');
+      const seedBtn = document.getElementById('seedBtn');
+      const qrBtn   = document.getElementById('qrBtn');
+      const qrModal = document.getElementById('qrModal');
+      const qrImg   = document.getElementById('qrImg');
+      const qrDl    = document.getElementById('qrDownload');
+
+      loadBtn?.addEventListener('click', ()=>{
+        const id = input.value.trim();
+        if (id) loadLot(id).catch(e=>alert('Load failed: '+e.message));
+      });
+
+      input?.addEventListener('keydown', (e)=>{
+        if (e.key === 'Enter') loadBtn?.click();
+      });
+
+      seedBtn?.addEventListener('click', async ()=>{
+        try {
+          await fetchJSON('/api/seed');
+          input.value = 'LOT-001';
+          await loadLot('LOT-001');
+        } catch(e){ alert('Seed failed: '+e.message); }
+      });
+
+      // ปุ่มสร้าง/แสดง QR
+      qrBtn?.addEventListener('click', async ()=>{
+        try{
+          const lotId = CURRENT_LOT_ID || input.value.trim();
+          if(!lotId){ alert('กรุณา Load lot ก่อน'); return; }
+
+          const res = await fetch(`/api/lots/${encodeURIComponent(lotId)}/qrcode`);
+          if(!res.ok) throw new Error(await res.text());
+          const blob = await res.blob();
+          const url  = URL.createObjectURL(blob);
+
+          qrImg.src = url;         // แสดงรูป
+          qrDl.href = url;         // ปุ่มดาวน์โหลด
+          qrModal.showModal();
+
+          // คืนหน่วยความจำเมื่อปิด
+          qrModal.addEventListener('close', ()=>{
+            URL.revokeObjectURL(url);
+            qrImg.src = '';
+          }, { once:true });
+        }catch(e){
+          alert('สร้าง QR ล้มเหลว: '+e.message);
+        }
+      });
+
+      // auto-load ถ้ามาพร้อม query ?lot_id=
+      const initial = qs('lot_id');
+      if (initial) { input.value = initial; loadLot(initial).catch(e=>alert(e.message)); }
     }
-  });
 
-  // auto-load ถ้ามีค่าในช่องอยู่แล้ว
-  if (input && input.value.trim()) loadLot(input.value.trim());
-}
-
-window.addEventListener("DOMContentLoaded", bindUI);
-// เก็บ lot ปัจจุบันหลังโหลดสำเร็จ
-let CURRENT_LOT_ID = null;
-
-// เรียกใช้ในฟังก์ชัน loadLot หลังโหลดเสร็จ
-// ...
-// หลังอัปเดต UI ทั้งหมดแล้ว:
-CURRENT_LOT_ID = data.lot_id;
-document.getElementById('qrBtn')?.removeAttribute('disabled');
-// ...
-
-function bindUI() {
-  const loadBtn = document.getElementById('loadBtn');
-  const seedBtn = document.getElementById('seedBtn');
-  const input   = document.getElementById('lotIdInput');
-  const qrBtn   = document.getElementById('qrBtn');
-  const qrModal = document.getElementById('qrModal');
-  const qrImg   = document.getElementById('qrImg');
-  const qrDl    = document.getElementById('qrDownload');
-
-  loadBtn?.addEventListener('click', () => {
-    const id = input.value.trim();
-    if (id) loadLot(id);
-  });
-
-  input?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') loadBtn?.click();
-  });
-
-  seedBtn?.addEventListener('click', async () => {
-    await fetchJSON('/api/seed');
-    input.value = 'LOT-001';
-    loadLot('LOT-001');
-  });
-
-  // ปุ่มสร้าง/แสดง QR
-  qrBtn?.addEventListener('click', async () => {
-    try {
-      const lotId = CURRENT_LOT_ID || input.value.trim();
-      if (!lotId) { alert('กรุณา Load lot ก่อน'); return; }
-
-      const res = await fetch(`/api/lots/${encodeURIComponent(lotId)}/qrcode`);
-      if (!res.ok) throw new Error(await res.text());
-      const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-
-      // แสดงรูป + ปุ่มดาวน์โหลด
-      qrImg.src = url;
-      qrDl.href = url;
-
-      qrModal.showModal();
-      // ปิดแล้วคืนหน่วยความจำ
-      qrModal.addEventListener('close', () => {
-        URL.revokeObjectURL(url);
-        qrImg.src = '';
-      }, { once: true });
-    } catch (e) {
-      alert('สร้าง QR ล้มเหลว: ' + e.message);
-    }
-  });
-
-  // auto-load ถ้า input มีค่า
-  if (input && input.value.trim()) loadLot(input.value.trim());
-}
-
+    window.addEventListener('DOMContentLoaded', bindUI);
+  </script>
+</body>
+</html>
