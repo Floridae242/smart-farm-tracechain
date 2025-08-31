@@ -271,7 +271,8 @@ def list_lots(
         page_size=page_size
     )
 
-@app.post("/api/seed_many")
+# รองรับทั้ง GET และ POST (GET ใช้ทดสอบจากเบราว์เซอร์ได้ง่าย)
+@app.api_route("/api/seed_many", methods=["GET", "POST"])
 def seed_many(n: int = 10, db: Session = Depends(get_db)):
     farms = [
         ("Baan Mae Rim Farm", "Mae Rim, Chiang Mai"),
@@ -282,8 +283,11 @@ def seed_many(n: int = 10, db: Session = Depends(get_db)):
     crops = ["Hydro Lettuce", "Kale", "Spinach", "Pak Choi", "Rocket"]
 
     created = 0
+    from datetime import datetime, timedelta
+    import random
+
     today = datetime.utcnow().date()
-    for i in range(1, n + 1):
+    for i in range(1, n+1):
         lot_id = f"LOT-{i:03d}"
         if db.scalar(select(Lot).where(Lot.lot_id == lot_id)):
             continue
@@ -301,7 +305,7 @@ def seed_many(n: int = 10, db: Session = Depends(get_db)):
         )
         create_lot(body, db)
 
-        # random sensor/transport events
+        # events สุ่ม
         for _ in range(random.randint(2, 4)):
             add_sensor_reading(SensorReading(
                 lot_id=lot_id,
@@ -324,6 +328,7 @@ def seed_many(n: int = 10, db: Session = Depends(get_db)):
         created += 1
 
     return {"status": "ok", "created": created}
+
 
 # ---------- Static (วางท้ายไฟล์เสมอ) ----------
 app.mount("/static", StaticFiles(directory="static"), name="static")
