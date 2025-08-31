@@ -44,3 +44,21 @@ class LotSummary(BaseModel):
     latest_humidity_pct: Optional[float] = None
     latest_ph: Optional[float] = None
     chain: List[Dict[str, Any]]
+
+from pydantic import BaseModel
+from typing import List, Optional
+
+class LotBrief(BaseModel):
+    lot_id: str
+    farm_name: str
+    crop: str
+    harvest_date: str
+    total_events: int
+    verified: bool
+
+class LotList(BaseModel):
+    items: List[LotBrief]
+    total: int
+    page: int
+    page_size: int
+
