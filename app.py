@@ -1,8 +1,10 @@
 import os
 import io
 import json
+from fastapi import Query
+from typing import Optional
+from sqlalchemy import select, func
 from datetime import datetime
-
 from fastapi import FastAPI, HTTPException, Depends, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -10,11 +12,12 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 import qrcode
-
 from database import Base, engine, SessionLocal
 from models import Lot, Event
 from schemas import CreateLot, SensorReading, TransportEvent, GenericEvent, LotSummary
 from utils import compute_hash, verify_chain, simple_quality_score, risk_label
+import random
+from datetime import timedelta
 
 # ---------- Config ----------
 BASE_URL = os.getenv("BASE_URL", "https://smart-farm-tracechain.onrender.com")
@@ -219,3 +222,110 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 @app.get("/")
 def root():
     return FileResponse("static/index.html")
+
+
+@app.get("/api/lots", response_model=schemas.LotList)  # อย่าลืม import schemas ถ้ายังไม่ได้ import
+def list_lots(
+    q: Optional[str] = Query(None, description="ค้นหาจาก lot_id/farm_name/crop"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    base = select(Lot)
+    if q:
+        like = f"%{q}%"
+        base = base.where(
+            (Lot.lot_id.ilike(like)) |
+            (Lot.farm_name.ilike(like)) |
+            (Lot.crop.ilike(like))
+        )
+
+    total = db.scalar(select(func.count()).select_from(base.subquery()))
+    rows = db.scalars(
+        base.order_by(Lot.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+    ).all()
+
+    items = []
+    for lot in rows:
+        # นับ event และ verify แบบย่อ
+        events = db.scalars(
+            select(Event).where(Event.lot_id == lot.id).order_by(Event.id.asc())
+        ).all()
+        chain = [{
+            "payload": json.loads(e.payload),
+            "timestamp": e.timestamp,
+            "prev_hash": e.prev_hash,
+            "hash": e.hash,
+            "type": e.type
+        } for e in events]
+        verified = verify_chain(chain)
+        items.append(schemas.LotBrief(
+            lot_id=lot.lot_id,
+            farm_name=lot.farm_name,
+            crop=lot.crop,
+            harvest_date=lot.harvest_date,
+            total_events=len(chain),
+            verified=verified
+        ))
+
+    return schemas.LotList(
+        items=items,
+        total=total or 0,
+        page=page,
+        page_size=page_size
+    )
+@app.post("/api/seed_many")
+def seed_many(n: int = 10, db: Session = Depends(get_db)):
+    farms = [
+        ("Baan Mae Rim Farm", "Mae Rim, Chiang Mai"),
+        ("Doi Saket Hydro", "Doi Saket, Chiang Mai"),
+        ("Hang Dong Greens", "Hang Dong, Chiang Mai"),
+        ("Mae Hia Organic", "Mae Hia, Chiang Mai"),
+    ]
+    crops = ["Hydro Lettuce", "Kale", "Spinach", "Pak Choi", "Rocket"]
+
+    created = 0
+    today = datetime.utcnow().date()
+    for i in range(1, n+1):
+        lot_id = f"LOT-{i:03d}"
+        if db.scalar(select(Lot).where(Lot.lot_id == lot_id)):
+            continue
+
+        farm_name, farm_loc = random.choice(farms)
+        crop = random.choice(crops)
+        harvest_date = str(today - timedelta(days=random.randint(1, 20)))
+
+        body = CreateLot(
+            lot_id=lot_id,
+            farm_name=farm_name,
+            farm_location=farm_loc,
+            crop=crop,
+            harvest_date=harvest_date
+        )
+        create_lot(body, db)
+
+        # sensor/transport events แบบสุ่มเบา ๆ
+        for _ in range(random.randint(2, 4)):
+            add_sensor_reading(SensorReading(
+                lot_id=lot_id,
+                farm_name=farm_name,
+                temperature_c=round(random.uniform(8, 20), 1),
+                humidity_pct=random.randint(60, 95),
+                soil_moisture_pct=random.randint(25, 40),
+                ph=round(random.uniform(6.0, 7.0), 1)
+            ), db)
+
+            if random.random() < 0.5:
+                add_transport_event(TransportEvent(
+                    lot_id=lot_id,
+                    location=random.choice(["Cold Room #1", "Cold Truck A", "Warehouse CM"]),
+                    temperature_c=round(random.uniform(8, 16), 1),
+                    humidity_pct=random.randint(60, 90),
+                    note=None
+                ), db)
+
+        created += 1
+
+    return {"status": "ok", "created": created}
