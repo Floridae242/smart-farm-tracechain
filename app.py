@@ -1,32 +1,34 @@
 import os
 import io
 import json
-from fastapi import Query
+import random
+from datetime import datetime, timedelta
 from typing import Optional
-from sqlalchemy import select, func
-from datetime import datetime
-from fastapi import FastAPI, HTTPException, Depends, Response
+
+from fastapi import FastAPI, HTTPException, Depends, Response, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+
 import qrcode
+
 from database import Base, engine, SessionLocal
 from models import Lot, Event
+import schemas  # <<=== สำคัญ: ใช้งาน LotSummary/LotList/LotBrief ผ่านโมดูลนี้
 from schemas import CreateLot, SensorReading, TransportEvent, GenericEvent, LotSummary
 from utils import compute_hash, verify_chain, simple_quality_score, risk_label
-import random
-from datetime import timedelta
 
 # ---------- Config ----------
-BASE_URL = os.getenv("BASE_URL", "https://smart-farm-tracechain.onrender.com")
+BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 
 app = FastAPI(title="Smart Farm TraceChain", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ปรับให้เหมาะสมเมื่อขึ้น Prod
+    allow_origins=["*"],  # ปรับให้ จำกัดโดเมนในโปรดักชัน
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -60,7 +62,7 @@ def _append_event(db: Session, lot: Lot, ev_type: str, payload: dict, ts_iso: st
     db.add(ev); db.commit(); db.refresh(ev)
     return ev
 
-# ---------- APIs ----------
+# ---------- APIs: one lot ----------
 @app.post("/api/harvests", response_model=LotSummary)
 def create_lot(body: CreateLot, db: Session = Depends(get_db)):
     lot = db.scalar(select(Lot).where(Lot.lot_id == body.lot_id))
@@ -194,7 +196,6 @@ def lot_qrcode(lot_id: str, db: Session = Depends(get_db)):
 @app.get("/api/seed")
 def seed(db: Session = Depends(get_db)):
     default_id = "LOT-001"
-    # ถ้ามีอยู่แล้ว ให้คืน lot_id เสมอ
     if db.scalar(select(Lot).where(Lot.lot_id == default_id)):
         return {"status": "exists", "lot_id": default_id}
 
@@ -216,15 +217,8 @@ def seed(db: Session = Depends(get_db)):
                                      soil_moisture_pct=30, ph=6.6), db)
     return {"status": "seeded", "lot_id": default_id}
 
-# ---------- Static (วางท้ายไฟล์เสมอ) ----------
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-@app.get("/")
-def root():
-    return FileResponse("static/index.html")
-
-
-@app.get("/api/lots", response_model=schemas.LotList)  # อย่าลืม import schemas ถ้ายังไม่ได้ import
+# ---------- Lots listing & search ----------
+@app.get("/api/lots", response_model=schemas.LotList)
 def list_lots(
     q: Optional[str] = Query(None, description="ค้นหาจาก lot_id/farm_name/crop"),
     page: int = Query(1, ge=1),
@@ -234,6 +228,7 @@ def list_lots(
     base = select(Lot)
     if q:
         like = f"%{q}%"
+        # ilike จะถูก emulate ให้กับ SQLite โดย SQLAlchemy
         base = base.where(
             (Lot.lot_id.ilike(like)) |
             (Lot.farm_name.ilike(like)) |
@@ -249,7 +244,6 @@ def list_lots(
 
     items = []
     for lot in rows:
-        # นับ event และ verify แบบย่อ
         events = db.scalars(
             select(Event).where(Event.lot_id == lot.id).order_by(Event.id.asc())
         ).all()
@@ -276,6 +270,7 @@ def list_lots(
         page=page,
         page_size=page_size
     )
+
 @app.post("/api/seed_many")
 def seed_many(n: int = 10, db: Session = Depends(get_db)):
     farms = [
@@ -288,7 +283,7 @@ def seed_many(n: int = 10, db: Session = Depends(get_db)):
 
     created = 0
     today = datetime.utcnow().date()
-    for i in range(1, n+1):
+    for i in range(1, n + 1):
         lot_id = f"LOT-{i:03d}"
         if db.scalar(select(Lot).where(Lot.lot_id == lot_id)):
             continue
@@ -306,7 +301,7 @@ def seed_many(n: int = 10, db: Session = Depends(get_db)):
         )
         create_lot(body, db)
 
-        # sensor/transport events แบบสุ่มเบา ๆ
+        # random sensor/transport events
         for _ in range(random.randint(2, 4)):
             add_sensor_reading(SensorReading(
                 lot_id=lot_id,
@@ -329,3 +324,10 @@ def seed_many(n: int = 10, db: Session = Depends(get_db)):
         created += 1
 
     return {"status": "ok", "created": created}
+
+# ---------- Static (วางท้ายไฟล์เสมอ) ----------
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/")
+def root():
+    return FileResponse("static/index.html")
