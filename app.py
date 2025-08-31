@@ -17,7 +17,7 @@ import qrcode
 
 from database import Base, engine, SessionLocal
 from models import Lot, Event
-import schemas  # <<=== สำคัญ: ใช้งาน LotSummary/LotList/LotBrief ผ่านโมดูลนี้
+import schemas
 from schemas import CreateLot, SensorReading, TransportEvent, GenericEvent, LotSummary
 from utils import compute_hash, verify_chain, simple_quality_score, risk_label
 
