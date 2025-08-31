@@ -165,3 +165,44 @@ function bindUI() {
 }
 
 window.addEventListener("DOMContentLoaded", bindUI);
+// ====== bindings สำหรับ search & seed many ======
+const searchInput = document.getElementById("searchInput");
+const searchBtn   = document.getElementById("searchBtn");
+const seedManyBtn = document.getElementById("seedManyBtn");
+
+// ค้นหาคลิกปุ่ม
+searchBtn?.addEventListener("click", async () => {
+  const q = searchInput.value.trim();
+  const resp = await searchLots(q, 1, 10);
+  renderLotList(resp);
+});
+
+// ค้นหาเมื่อกด Enter
+searchInput?.addEventListener("keydown", async (e) => {
+  if (e.key === "Enter") {
+    const q = searchInput.value.trim();
+    const resp = await searchLots(q, 1, 10);
+    renderLotList(resp);
+  }
+});
+
+// seed หลาย LOT
+seedManyBtn?.addEventListener("click", async () => {
+  seedManyBtn.disabled = true;
+  seedManyBtn.textContent = "Seeding...";
+  try {
+    const r = await fetchJSON("/api/seed_many", { method: "POST" });
+    alert(`สร้าง LOT ตัวอย่างแล้ว: ${r.created} รายการ`);
+  } catch (e) {
+    alert("Seed หลาย LOT ล้มเหลว: " + e.message);
+  } finally {
+    seedManyBtn.disabled = false;
+    seedManyBtn.textContent = "Seed 10 LOTs";
+  }
+  // โหลดรายการใหม่
+  const resp = await searchLots("", 1, 10);
+  renderLotList(resp);
+});
+
+// โหลดหน้ารายการครั้งแรก
+searchLots("", 1, 10).then(renderLotList).catch(console.error);
